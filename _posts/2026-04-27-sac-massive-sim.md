@@ -1,9 +1,10 @@
 ---
 layout: distill
 title: "Getting SAC to Work on a Massive Parallel Simulator: An RL Journey With Off-Policy Algorithms"
-description: This post details how to get the Soft-Actor Critic (SAC) and other off-policy reinforcement learning algorithms to work on massively parallel simulators (e.g., Isaac Sim with thousands of robots simulated in parallel).
+description: |
+  This post details how to get the Soft-Actor Critic (SAC) and other off-policy reinforcement learning algorithms to work on massively parallel simulators (e.g., Isaac Sim with thousands of robots simulated in parallel).
 
-This post explores why SAC fails where PPO succeeds, highlighting a common problem in task design that many codebases share.
+  It also explores why SAC fails where PPO succeeds, highlighting a common problem in task design that many codebases share.
 
 date: 2026-04-27
 future: true
@@ -34,7 +35,7 @@ authors:
 #       name: IAS, Princeton
 
 # must be the exact same name as your blogpost
-bibliography: 2026-09-29-sac-massive-sim.bib
+bibliography: 2026-04-27-sac-massive-sim.bib
 
 # Add a table of contents to your post.
 #   - make sure that TOC names match the actual section names
