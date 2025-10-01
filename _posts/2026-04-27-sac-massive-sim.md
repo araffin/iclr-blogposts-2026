@@ -1,11 +1,7 @@
 ---
 layout: distill
 title: "Getting SAC to Work on a Massive Parallel Simulator: An RL Journey With Off-Policy Algorithms"
-description: |
-  This post details how to get the Soft-Actor Critic (SAC) and other off-policy reinforcement learning algorithms to work on massively parallel simulators (e.g., Isaac Sim with thousands of robots simulated in parallel).
-
-  It also explores why SAC fails where PPO succeeds, highlighting a common problem in task design that many codebases share.
-
+description: This post details how to get the Soft-Actor Critic (SAC) and other off-policy reinforcement learning algorithms to work on massively parallel simulators (e.g., Isaac Sim with thousands of robots simulated in parallel). It also explores why SAC fails where PPO succeeds, highlighting a common problem in task design that many codebases share.
 date: 2026-04-27
 future: true
 htmlwidgets: true
@@ -21,18 +17,10 @@ authors:
   - name: Anonymous
 
 # authors:
-#   - name: Albert Einstein
-#     url: "https://en.wikipedia.org/wiki/Albert_Einstein"
+#   - name: Antonin Raffin
+#     url: https://araffin.github.io/
 #     affiliations:
-#       name: IAS, Princeton
-#   - name: Boris Podolsky
-#     url: "https://en.wikipedia.org/wiki/Boris_Podolsky"
-#     affiliations:
-#       name: IAS, Princeton
-#   - name: Nathan Rosen
-#     url: "https://en.wikipedia.org/wiki/Nathan_Rosen"
-#     affiliations:
-#       name: IAS, Princeton
+#       name: German Aerospace Center (DLR)
 
 # must be the exact same name as your blogpost
 bibliography: 2026-04-27-sac-massive-sim.bib
@@ -42,10 +30,18 @@ bibliography: 2026-04-27-sac-massive-sim.bib
 #     for hyperlinks within the post to work correctly.
 #   - please use this format rather than manually creating a markdown table of contents.
 toc:
-  - name: Equations
-  - name: Images and Figures
+  - name: "A Suspicious Trend: PPO, PPO, PPO, …"
+  - name: Why It Matters? - Fine Tuning on Real Robots
+  - name: (The Path of Least Resistance) Hypothesis
+  - name: The Hunt Begins
+  - name: PPO Gaussian Distribution
+  - name: SAC Squashed Gaussian
+  - name: Quick Fix
+  - name: That’s all folks?
+  - name: "Outro: What Does That Mean for the RL Community?"
     subsections:
-      - name: Interactive Figures
+      - name: Appendix - Affected Papers/Code
+      - name: Appendix - Note on Unbounded Action Spaces
 
 ---
 
@@ -78,10 +74,11 @@ By using other algorithms it might also be possible to get better performance.
 Finally, it is always good to have a better understanding of what works or not and why.
 As researchers, we tend to publish only positive results, but I think a lot of valuable insights are lost in our unpublished failures.
 
-<a href="https://araffin.github.io/slides/design-real-rl-experiments/">
-  <img style="max-width: 50%" src="https://araffin.github.io/slides/tips-reliable-rl/images/bert/real_bert.jpg" alt="The DLR bert quadruped robot, standing on a stone." />
-</a>
-  <p style="font-size: 12pt; text-align:center;">The DLR bert elastic quadruped</p>
+<!--<div style="max-width: 50%; margin: auto;">
+include figure.liquid path="https://araffin.github.io/slides/tips-reliable-rl/images/bert/real_bert.jpg" class="img-fluid"
+<p style="font-size: 12pt; text-align:center;">The DLR bert elastic quadruped</p>
+</div>-->
+
 
 ## (The Path of Least Resistance) Hypothesis
 
@@ -91,7 +88,7 @@ Before digging any further, I had some hypotheses as to why PPO was the only alg
 - There may be some peculiarities in the environment design that favor PPO over other algorithms. In other words, the massively parallel environments might be optimized for PPO.
 - SAC/TQC and derivatives are tuned for sample efficiency, not fast wall clock time. In the case of massively parallel simulation, what matters is how long it takes to train, not how many samples are used. They probably need to be tuned/adjusted for this new setting.
 
-Note: during my journey, I will (obviously) be using [Stable-Baselines3](https://github.com/DLR-RM/stable-baselines3) and its fast Jax version [SBX](https://github.com/araffin/sbx).
+<!--Note: during my journey, I will be using [Stable-Baselines3](https://github.com/DLR-RM/stable-baselines3) and its fast Jax version [SBX](https://github.com/araffin/sbx).-->
 
 ## The Hunt Begins
 
@@ -99,12 +96,13 @@ There are now many massively parallel simulators available (Isaac Sim, Brax, MJX
 
 As with any RL problem, starting simple is the [key to success](https://www.youtube.com/watch?v=eZ6ZEpCi6D8).
 
-<video controls src="https://b2drop.eudat.eu/public.php/dav/files/z5LFrzLNfrPMd9o/ppo_trained.mp4">
-</video>
-<p style="font-size: 14pt; text-align:center;">A PPO agent trained on the <code>Isaac-Velocity-Flat-Unitree-A1-v0</code> locomotion task.
-  <br>
-  Green arrow is the desired velocity, blue arrow represents the current velocity
-</p>
+<!--<video controls src="https://b2drop.eudat.eu/public.php/dav/files/z5LFrzLNfrPMd9o/ppo_trained.mp4">
+</video>-->
+{% include video.liquid path="https://b2drop.eudat.eu/public.php/dav/files/z5LFrzLNfrPMd9o/ppo_trained.mp4" class="img-fluid rounded z-depth-1" controls=true %}
+<div class="caption">
+    A PPO agent trained on the <code>Isaac-Velocity-Flat-Unitree-A1-v0</code> locomotion task. <br>
+    Green arrow is the desired velocity, blue arrow represents the current velocity
+</div>
 
 
 Therefore, I decided to focus on the `Isaac-Velocity-Flat-Unitree-A1-v0` locomotion task first, because it is simple but representative.
@@ -122,9 +120,12 @@ No matter how long it was training, there was no sign of improvement.
 Looking at the simulation GUI, something struck me: the robots were making very large random movements.
 Something was wrong.
 
-<video controls src="https://b2drop.eudat.eu/public.php/dav/files/z5LFrzLNfrPMd9o/limits_train.mp4">
-</video>
-<p style="font-size: 14pt; text-align:center;">SAC out of the box on Isaac Sim during training.</p>
+<!--<video controls src="https://b2drop.eudat.eu/public.php/dav/files/z5LFrzLNfrPMd9o/limits_train.mp4">
+</video>-->
+{% include video.liquid path="https://b2drop.eudat.eu/public.php/dav/files/z5LFrzLNfrPMd9o/limits_train.mp4" class="img-fluid rounded z-depth-1" controls=true %}
+<div class="caption">
+    SAC out of the box on Isaac Sim during training.
+</div>
 
 Because of the very large movements, my suspicion was towards what action the robot is allowed to do.
 Looking at the code, the RL agent commands a (scaled) [delta](https://github.com/isaac-sim/IsaacLab/blob/f1a4975eb7bae8509082a8ff02fd775810a73531/source/isaaclab/isaaclab/envs/mdp/actions/joint_actions.py#L134) with respect to a default [joint position](https://github.com/isaac-sim/IsaacLab/blob/f1a4975eb7bae8509082a8ff02fd775810a73531/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/velocity_env_cfg.py#L112):
@@ -140,32 +141,40 @@ import ipdb; ipdb.set_trace()
 Box(-100.0, 100.0, (12,), float32)
 ```
 Ah ah!
-The action space defines continuous actions of dimension 12 (nothing wrong here), but the limits $[-100, 100]$ are surprisingly large, e.g., it allows a delta of +/- 1432 deg!! in joint angle when [scale=0.25](https://github.com/isaac-sim/IsaacLab/blob/f1a4975eb7bae8509082a8ff02fd775810a73531/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/a1/rough_env_cfg.py#L30), like for the Unitree A1 robot.
-To understand why [normalizing](https://www.youtube.com/watch?v=Ikngt0_DXJg) the action space [matters](https://stable-baselines3.readthedocs.io/en/master/guide/rl_tips.html) (usually a bounded space in $[-1, 1]$), we need to dig deeper into how PPO works.
+The action space defines continuous actions of dimension 12 (nothing wrong here), but the limits $$[-100, 100]$$ are surprisingly large, e.g., it allows a delta of +/- 1432 deg!! in joint angle when [scale=0.25](https://github.com/isaac-sim/IsaacLab/blob/f1a4975eb7bae8509082a8ff02fd775810a73531/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/a1/rough_env_cfg.py#L30), like for the Unitree A1 robot.
+To understand why [normalizing](https://www.youtube.com/watch?v=Ikngt0_DXJg) the action space [matters](https://stable-baselines3.readthedocs.io/en/master/guide/rl_tips.html) (usually a bounded space in $$[-1, 1]$$), we need to dig deeper into how PPO works.
 
 ## PPO Gaussian Distribution
 
 Like many RL algorithms, [PPO](https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/) relies on a probability distribution to select actions.
-During training, at each timestep, it samples an action $a_t \sim N(\mu_\theta(s_t), \sigma^2)$ from a Gaussian distribution in the case of continuous actions[^brax-ppo].
-The mean of the Gaussian $\mu_\theta(s_t)$ is the output of the actor neural network (with parameters $\theta$) and the standard deviation is a [learnable parameter](https://github.com/DLR-RM/stable-baselines3/blob/55d6f18dbd880c62d40a276349b8bac7ebf453cd/stable_baselines3/common/distributions.py#L150) $\sigma$, usually [initialized](https://github.com/leggedrobotics/rsl_rl/blob/f80d4750fbdfb62cfdb0c362b7063450f427cf35/rsl_rl/modules/actor_critic.py#L26) with $\sigma_0 = 1.0$.
+During training, at each timestep, it samples an action $$a_t \sim N(\mu_\theta(s_t), \sigma^2)$$ from a Gaussian distribution in the case of continuous actions[^brax-ppo].
+The mean of the Gaussian $$\mu_\theta(s_t)$$ is the output of the actor neural network (with parameters $$\theta$$) and the standard deviation is a [learnable parameter](https://github.com/DLR-RM/stable-baselines3/blob/55d6f18dbd880c62d40a276349b8bac7ebf453cd/stable_baselines3/common/distributions.py#L150) $$\sigma$$, usually [initialized](https://github.com/leggedrobotics/rsl_rl/blob/f80d4750fbdfb62cfdb0c362b7063450f427cf35/rsl_rl/modules/actor_critic.py#L26) with $$\sigma_0 = 1.0$$.
 
-This means that at the beginning of training, most of the sampled actions will be in $[-3, 3]$ (from the [Three Sigma Rule](https://en.wikipedia.org/wiki/68%E2%80%9395%E2%80%9399.7_rule)):
+This means that at the beginning of training, most of the sampled actions will be in $$[-3, 3]$$ (from the [Three Sigma Rule](https://en.wikipedia.org/wiki/68%E2%80%9395%E2%80%9399.7_rule)):
 
-<img style="max-width:80%" src="assets/img/2026-04-27-distill-example/gaussian.svg"/>
-<p style="font-size: 14pt; text-align:center;">The initial Gaussian distribution used by PPO for sampling actions.</p>
+{% include figure.liquid path="assets/img/2026-04-27-sac-massive-sim/gaussian.svg" class="img-fluid" %}
+<!--<img style="max-width:80%" src="assets/img/2026-04-27-sac-massive-sim/gaussian.svg"/>-->
+<div class="caption">
+    The initial Gaussian distribution used by PPO for sampling actions.
+</div>
 
 
-Back to our original topic, because of the way $\sigma$ is initialized, if the action space has large bounds (upper/lower bounds >> 1), PPO will almost never sample actions near the limits.
+Back to our original topic, because of the way $$\sigma$$ is initialized, if the action space has large bounds (upper/lower bounds >> 1), PPO will almost never sample actions near the limits.
 In practice, the actions taken by PPO will even be far away from them.
 Now, let's compare the initial PPO action distribution with the Unitree A1 action space:
 
-<img style="max-width:80%" src="assets/img/2026-04-27-distill-example/gaussian_large_bounds.svg"/>
-<p style="font-size: 14pt; text-align:center;">The same initial Gaussian distribution but with the perspective of the Unitree A1 action space $[-100, 100]$</p>
+{% include figure.liquid path="assets/img/2026-04-27-sac-massive-sim/gaussian_large_bounds.svg" class="img-fluid" %}
+<div class="caption">
+    The same initial Gaussian distribution but with the perspective of the Unitree A1 action space $$[-100, 100]$$
+</div>
 
-For reference, we can plot the action distribution of PPO after training[^action-plotter]:
+For reference, we can plot the action distribution of PPO after training:
+<!--[^action-plotter]-->
 
-<img src="assets/img/2026-04-27-distill-example/dist_actions_trained_ppo.svg"/>
-<p style="font-size: 14pt; text-align:center;">Distribution of actions for PPO after training (on 64 000 steps).</p>
+{% include figure.liquid path="assets/img/2026-04-27-sac-massive-sim/dist_actions_trained_ppo.svg" class="img-fluid" %}
+<div class="caption">
+    Distribution of actions for PPO after training (on 64 000 steps).
+</div>
 
 The min/max values per dimension:
 ```python
@@ -176,7 +185,7 @@ array([ 3.2,  2.8,  2.7,  2.8,  2.9,  2.7,  3.2,  2.9,  7.2,  5.7,  5. ,  5.8])
 
 ```
 
-Again, most of the actions are centered around zero (which makes sense, since it corresponds to the quadruped initial position, which is usually chosen to be stable), and there are almost no actions outside $[-5, 5]$ (less than 0.1%): PPO uses less than 5% of the action space!
+Again, most of the actions are centered around zero (which makes sense, since it corresponds to the quadruped initial position, which is usually chosen to be stable), and there are almost no actions outside $$[-5, 5]$$ (less than 0.1%): PPO uses less than 5% of the action space!
 
 Now that we know that we need less than 5% of the action space to solve the task, let's see why this might explain why SAC doesn't work in this case[^rl-tips].
 
@@ -185,19 +194,23 @@ Now that we know that we need less than 5% of the action space to solve the task
 ## SAC Squashed Gaussian
 
 SAC and other off-policy algorithms for continuous actions (such as DDPG, TD3 or [TQC](https://sb3-contrib.readthedocs.io/en/master/modules/tqc.html)) have an additional transformation at the end of the actor network.
-In SAC, actions are sampled from an unbounded Gaussian distribution and then passed through a [$tanh()$](https://pytorch.org/docs/stable/generated/torch.nn.Tanh.html) function to squash them to the range $[-1, 1]$.
-SAC then linearly rescales the sampled action to match the action space definition, i.e. it transforms the action from $[-1, 1]$ to $[\text{low}, \text{high}]$[^rescale].
+In SAC, actions are sampled from an unbounded Gaussian distribution and then passed through a [$$tanh()$$](https://pytorch.org/docs/stable/generated/torch.nn.Tanh.html) function to squash them to the range $$[-1, 1]$$.
+SAC then linearly rescales the sampled action to match the action space definition, i.e. it transforms the action from $$[-1, 1]$$ to $$[\text{low}, \text{high}]$$[^rescale].
 
 What does this mean?
 Assuming we start with a standard deviation similar to PPO, this is what the sampled action distribution looks like after squashing[^clipping]:
 
-<img src="assets/img/2026-04-27-distill-example/squashed_vs_gaussian.svg"/>
-<p style="font-size: 14pt; text-align:center;">The equivalent initial squashed Gaussian distribution.</p>
+{% include figure.liquid path="assets/img/2026-04-27-sac-massive-sim/squashed_vs_gaussian.svg" class="img-fluid" %}
+<div class="caption">
+    The equivalent initial squashed Gaussian distribution.
+</div>
 
 And after rescaling to the environment limits (with PPO distribution to put it in perspective):
 
-<img src="assets/img/2026-04-27-distill-example/squashed_rescaled.svg"/>
-<p style="font-size: 14pt; text-align:center;">The same initial squashed Gaussian distribution but rescaled to the Unitree A1 action space $[-100, 100]$</p>
+{% include figure.liquid path="assets/img/2026-04-27-sac-massive-sim/squashed_rescaled.svg" class="img-fluid" %}
+<div class="caption">
+    The same initial squashed Gaussian distribution but rescaled to the Unitree A1 action space $$[-100, 100]$$
+</div>
 
 As you can see, these are two completely different initial distributions at the beginning of training!
 The fact that the actions are rescaled to fit the action space boundaries explains the very large movements seen during training, and also explains why it was impossible for SAC to learn anything useful.
@@ -211,13 +224,15 @@ What I tried next was to use a neural network similar to the one used by PPO for
 Bingo!
 SAC finally learned to solve the task!
 
-<img style="max-width:100%" src="assets/img/2026-04-27-distill-example/learning_curve.svg"/>
-<p style="font-size: 14pt; text-align:center;">Learning curve on the Unitree A1 task using 1024 envs.</p>
+{% include figure.liquid path="assets/img/2026-04-27-sac-massive-sim/learning_curve.svg" class="img-fluid" %}
+<div class="caption">
+    Learning curve on the Unitree A1 task using 1024 envs.
+</div>
 
-
-<video controls src="https://b2drop.eudat.eu/public.php/dav/files/z5LFrzLNfrPMd9o/sac_trained_cut_1.mp4">
-</video>
-<p style="font-size: 14pt; text-align:center;">Trained SAC agent after the quick fix.</p>
+{% include video.liquid path="https://b2drop.eudat.eu/public.php/dav/files/z5LFrzLNfrPMd9o/sac_trained_cut_1.mp4" class="img-fluid rounded z-depth-1" controls=true %}
+<div class="caption">
+    Trained SAC agent after the quick fix.
+</div>
 
 SAC Hyperparameters (the ones not specified are [SB3 defaults](https://github.com/araffin/sbx/blob/8238fccc19048340870e4869813835b8fb02e577/sbx/sac/sac.py#L54-L64)):
 ```python
@@ -249,7 +264,8 @@ After a quick search, it turns out that there are a lot of papers/code affected[
 
 Although the initial choice of bounds may be a conscious and convenient one (no need to specify the real bounds, PPO will figure it out), it seems to have worked a bit by accident for those who built on top of it, and probably discouraged practitioners from trying other algorithms.
 
-My recommendation would be to always have properly defined action bounds, and if they are not known in advance, you can always [plot the action distribution](https://gist.github.com/araffin/e069945a68aa0d51fcdff3f01e945c70) and adjust the limits when iterating on the environment design.
+<!--My recommendation would be to always have properly defined action bounds, and if they are not known in advance, you can always [plot the action distribution](https://gist.github.com/araffin/e069945a68aa0d51fcdff3f01e945c70) and adjust the limits when iterating on the environment design.-->
+My recommendation would be to always have properly defined action bounds, and if they are not known in advance, you can always plot the action distribution and adjust the limits when iterating on the environment design.
 
 <!-- TODO: get feedback if this is an overlooked problem or known issue but PPO is nice because it can decide which action space to choose? -->
 
@@ -329,27 +345,13 @@ This makes training almost invariant to the chosen PD gains.
 >It essentially learns to trick the PD control to output whatever torques it needs. Of course, this also depends on the PD gains you set; if they are well chosen, actions outside of the joint limits are less frequent. A big benefit is that this makes the whole training pipeline quite invariant to the PD gains you choose at the start, which makes tuning easier.
 </details>
 
-## Citation
 
-```
-@article{raffin2025isaacsim,
-  title   = "Getting SAC to Work on a Massive Parallel Simulator: An RL Journey With Off-Policy Algorithms",
-  author  = "Raffin, Antonin",
-  journal = "araffin.github.io",
-  year    = "2025",
-  month   = "Feb",
-  url     = "https://araffin.github.io/post/sac-massive-sim/"
-}
-```
+<!--## Acknowledgement
 
-## Acknowledgement
-
-I would like to thank Anssi, Leon, Ria and Costa for their feedback =).
+I would like to thank Anssi, Leon, Ria and Costa for their feedback =).-->
 
 <!-- All the graphics were made using [excalidraw](https://excalidraw.com/). -->
 
-
-### Did you find this post helpful? Consider sharing it 🙌
 
 ## Footnotes
 
@@ -360,7 +362,7 @@ I would like to thank Anssi, Leon, Ria and Costa for their feedback =).
 [^brax-ppo]: This is not true for the PPO implementation in Brax which uses a squashed Gaussian like SAC.
 [^brax-envs]: A notable exception are Brax-based environments because their PPO implementation uses a squashed Gaussian, so the boundaries of the environments had to be properly defined.
 [^control-freq]: The control loop runs at [50 Hz](https://github.com/isaac-sim/IsaacLab/blob/f1a4975eb7bae8509082a8ff02fd775810a73531/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/velocity_env_cfg.py#L302), so after 20s.
-[^action-plotter]: The code to record and plot action distribution is on [GitHub](https://gist.github.com/araffin/e069945a68aa0d51fcdff3f01e945c70)
+<!--[^action-plotter]: The code to record and plot action distribution is on [GitHub](https://gist.github.com/araffin/e069945a68aa0d51fcdff3f01e945c70)-->
 [^disney-robot]: Like the [BD-1 Disney robot](https://www.youtube.com/watch?v=7_LW7u-nk6Q)
 [^open-rl-bench]: See results from Huang, Shengyi, et al. "[Open rl benchmark](https://wandb.ai/openrlbenchmark/): Comprehensive tracked experiments for reinforcement learning." arXiv preprint arXiv:2402.03046 (2024).
 [^ent-coef]: The entropy coeff is the coeff that does the trade-off between RL objective and entropy maximization.
