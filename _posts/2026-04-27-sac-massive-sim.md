@@ -30,14 +30,14 @@ bibliography: 2026-04-27-sac-massive-sim.bib
 #     for hyperlinks within the post to work correctly.
 #   - please use this format rather than manually creating a markdown table of contents.
 toc:
-  - name: "A Suspicious Trend: PPO, PPO, PPO, …"
+  - name: "A Suspicious Trend: PPO, PPO, PPO, ..."
   - name: Why It Matters? - Fine Tuning on Real Robots
   - name: (The Path of Least Resistance) Hypothesis
   - name: The Hunt Begins
   - name: PPO Gaussian Distribution
   - name: SAC Squashed Gaussian
   - name: Quick Fix
-  - name: That’s all folks?
+  - name: That's all folks?
   - name: "Outro: What Does That Mean for the RL Community?"
     subsections:
       - name: Appendix - Affected Papers/Code
@@ -55,7 +55,7 @@ Spoiler alert: [quite a few papers/code](#appendix---affected-paperscode) are af
 - [Part II](../tune-sac-isaac-sim/) is about tuning SAC for speed and making it work as good as PPO.
 
 
-##  A Suspicious Trend: PPO, PPO, PPO, ...
+## A Suspicious Trend: PPO, PPO, PPO, ...
 
 The story begins a few months ago when I saw another paper using the same recipe for learning locomotion: train a PPO agent in simulation using thousands of environments in parallel and domain randomization, then deploy it on the real robot.
 This recipe has become the standard since 2021, when ETH Zurich and NVIDIA<d-footnote>Rudin, Nikita, et al. <a href="https://arxiv.org/abs/2109.11978">"Learning to walk in minutes using massively parallel deep reinforcement learning."</a> Conference on Robot Learning. PMLR, 2022.</d-footnote> showed that it was possible to learn locomotion in minutes on a single workstation.
