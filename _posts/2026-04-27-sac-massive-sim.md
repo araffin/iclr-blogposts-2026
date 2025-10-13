@@ -37,14 +37,13 @@ toc:
   - name: PPO Gaussian Distribution
   - name: SAC Squashed Gaussian
   - name: Quick Fix
+  - name: "Transition: What Does That Mean for the RL Community?"
   - name: Tuning for Speed (Part II)
-  # - name: In the Previous Episode...
   - name: Defining Proper Action Bound - Extracting the Limits with PPO
   - name: "Need for Speed or: How I Learned to Stop Worrying About Sample Efficiency"
   - name: Does it work? - More Environments
   - name: Solving Harder Environments
   - name: Conclusion
-  - name: "Outro: What Does That Mean for the RL Community?"
     # subsections:
     #   - name: "Appendix: Affected Papers/Code"
     #   - name: "Appendix: Note on Unbounded Action Spaces"
