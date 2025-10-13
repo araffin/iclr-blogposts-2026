@@ -1,7 +1,7 @@
 ---
 layout: distill
 title: "Getting SAC to Work on a Massive Parallel Simulator: An RL Journey With Off-Policy Algorithms"
-description: This post details how to get the Soft-Actor Critic (SAC) and other off-policy reinforcement learning algorithms to work on massively parallel simulators (e.g., Isaac Sim with thousands of robots simulated in parallel). It also explores why SAC fails where PPO succeeds, highlighting a common problem in task design that many codebases share.
+description: This post details how to get the Soft-Actor Critic (SAC) and other off-policy reinforcement learning algorithms to work on massively parallel simulators (e.g., Isaac Sim with thousands of robots simulated in parallel). In addition to tuning SAC for speed, the post also explores why SAC fails where PPO succeeds, highlighting a common problem in task design that many codebases share.
 date: 2026-04-27
 future: true
 htmlwidgets: true
@@ -59,16 +59,16 @@ If you follow the journey, you will learn about overlooked details in task desig
 Spoiler alert: [quite a few papers/code](#appendix-affected-paperscode) are affected by the problem described below.
 
 This post is divided into two main parts.
-The first part analyzes why SAC does not work out of the box in Isaac Sim environments (until the [quick fix](#quick-fix)).
-The [second part][#tuning-for-speed-part-ii] discusses how to tune SAC for speed and make it perform as good as PPO.
+The first part analyzes why SAC does not work out of the box in Isaac Sim environments (until the [quick fix section](#quick-fix)).
+The [second part](#tuning-for-speed-part-ii) discusses how to tune SAC for speed and make it perform as good as PPO.
 
 ## A Suspicious Trend: PPO, PPO, PPO, ...
 
 The story begins a few months ago when I saw another paper using the same recipe for learning locomotion: train a PPO<d-cite key="schulman2017proximal"></d-cite> agent in simulation using thousands of environments in parallel and domain randomization, then deploy it on the real robot.
-This recipe has become the standard since 2021, when ETH Zurich and NVIDIA<d-cite key="rudin2022learning"></d-cite> showed that it was possible to learn locomotion in minutes on a single workstation.
+This recipe has become the standard since 2021, when ETH Zurich and NVIDIA showed that it was possible to learn locomotion in minutes on a single workstation<d-cite key="rudin2022learning"></d-cite>.
 The codebase and the simulator (called Isaac Gym<d-cite key="makoviychuk2021isaac"></d-cite> at that time) that were published became the basis for much follow-up work<d-footnote>Like the <a href="https://www.youtube.com/watch?v=7_LW7u-nk6Q">BD-1 Disney robot</a></d-footnote>.
 
-As an RL researcher focused on [learning directly on real robots](https://proceedings.mlr.press/v164/raffin22a/raffin22a.pdf), I was curious and suspicious about one aspect of this trend: why is no one trying an algorithm other than PPO?<d-footnote>I was not the only one asking why SAC doesn't work: <a href="https://forums.developer.nvidia.com/t/poor-performance-of-soft-actor-critic-sac-in-omniverseisaacgym/266970">nvidia forum</a> <a href="https://www.reddit.com/r/reinforcementlearning/comments/lcx0cm/scaling_up_sac_with_parallel_environments/">reddit1</a> <a href="https://www.reddit.com/r/reinforcementlearning/comments/12h1faq/isaac_gym_with_offpolicy_algorithms">reddit2</a></d-footnote>
+As an RL researcher interested in learning directly on real robots, I was curious and suspicious about one aspect of this trend: why is no one trying an algorithm other than PPO<d-footnote>I was not the only one asking why SAC doesn't work: <a href="https://forums.developer.nvidia.com/t/poor-performance-of-soft-actor-critic-sac-in-omniverseisaacgym/266970">nvidia forum</a> <a href="https://www.reddit.com/r/reinforcementlearning/comments/lcx0cm/scaling_up_sac_with_parallel_environments/">reddit1</a> <a href="https://www.reddit.com/r/reinforcementlearning/comments/12h1faq/isaac_gym_with_offpolicy_algorithms">reddit2</a></d-footnote>?
 PPO benefits from fast and parallel environments<d-cite key="berner2019dota"></d-cite>, but PPO is not the only deep reinforcement learning (DRL) algorithm for continuous control tasks, and there are alternatives like SAC<d-cite key="haarnoja2018soft"></d-cite> or TQC<d-cite key="kuznetsov2020tqc"></d-cite> that can lead to better performance<d-cite key="huang2023openrlbenchmark"></d-cite>.
 
 So I decided to investigate why practitioners do not use these off-policy algorithms, and maybe why they don't work with massively parallel simulators.
@@ -103,8 +103,6 @@ Note: During my journey, I will be using [Stable-Baselines3](https://github.com/
 There are now many massively parallel simulators available (Isaac Sim, Brax, MJX, Genesis, ...), here, I chose to focus on Isaac Sim because it was one of the first and is probably the most influential one.
 
 <!--As with any RL problem, starting simple is the [key to success](https://www.youtube.com/watch?v=eZ6ZEpCi6D8).-->
-As with any RL problem, starting simple is the key to success <d-footnote>Also known as <a href="https://en.wikipedia.org/wiki/John_Gall_(author)#Gall's_law">Gall's law</a></d-footnote>.
-
 <!--<video controls src="https://b2drop.eudat.eu/public.php/dav/files/z5LFrzLNfrPMd9o/ppo_trained.mp4">
 </video>-->
 {% include video.liquid path="https://b2drop.eudat.eu/public.php/dav/files/z5LFrzLNfrPMd9o/ppo_trained.mp4" class="img-fluid rounded z-depth-1" controls=true %}
@@ -113,7 +111,7 @@ As with any RL problem, starting simple is the key to success <d-footnote>Also k
     Green arrow is the desired velocity, blue arrow represents the current velocity
 </div>
 
-
+As with any RL problem, starting simple is the key to success <d-footnote>Also known as <a href="https://en.wikipedia.org/wiki/John_Gall_(author)#Gall's_law">Gall's law</a></d-footnote>.
 Therefore, I decided to focus on the `Isaac-Velocity-Flat-Unitree-A1-v0` locomotion task first, because it is simple but representative.
 The goal is to learn a policy that can move the Unitree A1 quadruped in any direction on flat ground, following a commanded velocity (the same way you would control a robot with a joystick).
 The agent receives information about its current task as input (joint positions, velocities, desired velocity, ...) and outputs desired joint positions (12D vector, three joints per leg).
@@ -123,7 +121,7 @@ An episode ends when the robot falls over and is timed out after 1000 steps<d-fo
 
 <!--After some [quick optimizations](https://github.com/isaac-sim/IsaacLab/pull/2022) (SB3 now runs 4x faster, at 60 000 fps for 2048 envs with PPO), I did some sanity checks.-->
 To begin, I did some sanity checks.
-I ran PPO with the tuned hyperparameters found in the repository, and it was able to quickly solve the task.
+I ran PPO with the [tuned hyperparameters](https://github.com/isaac-sim/IsaacLab/blob/f52aa9802780e897c184684d1cbc2025fafcef4a/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/a1/agents/sb3_ppo_cfg.yaml) found in the repository, and it was able to quickly solve the task.
 In 5 minutes, it gets an average episode return of ~30 (above an episode return of 15, the task is almost solved).
 Then I tried SAC and TQC, with default hyperparameters (and observation normalization), and, as expected, it didn't work.
 No matter how long it was training, there was no sign of improvement.
@@ -265,9 +263,20 @@ sac_hyperparams = dict(
 
 <!--That's all, folks? - -->
 
+## Transition: What Does That Mean for the RL Community?
+
+When I discovered the large action limits problem, I was curious to see how widespread it was in the community.
+After a quick search, it turns out that a lot of papers/code are affected<d-footnote>A notable exception are Brax-based environments because their PPO implementation uses a squashed Gaussian, so the boundaries of the environments had to be properly defined.</d-footnote> by this large boundary problem (see a non-exhaustive [list of affected papers/code below](#appendix-affected-paperscode)).
+
+Although the initial choice of bounds may be a conscious and convenient one (no need to specify the real bounds, PPO will figure it out), it seems to have worked a bit by accident for those who built on top of it, and probably discouraged practitioners from trying other algorithms.
+
+<!--My recommendation would be to always have properly defined action bounds, and if they are not known in advance, you can always [plot the action distribution](https://gist.github.com/araffin/e069945a68aa0d51fcdff3f01e945c70) and adjust the limits when iterating on the environment design.-->
+My recommendation would be to always have properly defined action bounds.
+If they are not known in advance, you can [plot the action distribution](#appendix-plot-action-distribution) and adjust the limits when iterating on the environment design <d-footnote>More on that very soon ;)</d-footnote>.
+
 ## Tuning for Speed (Part II)
 
-Although SAC can now solve this locomotion task, it takes more time to train, is not consistent, and the performance is slightly below PPO's.
+Although SAC can now solve the locomotion task on flat ground, it takes more time to train, is not consistent, and the performance is slightly below PPO's.
 In addition, SAC's learned gaits are not as pleasing as PPO's, for example, SAC agents tend to keep one leg up in the air...
 
 <!--By limiting the action space to 3% of the original size, and quickly tuning SAC (bigger network, reduced initial exploration rate), I could get SAC to learn to solve the Unitree A1 task on a flat surface in minutes.-->
@@ -307,7 +316,7 @@ high = np.array([1.1, 2.6, 0.7, 1.9, 1.3, 2.6, 3.4, 3.8, 3.4, 3.4, 1.9, 2.1])
 
 The second aspect I can improve is the hyperparameters of the SAC algorithm.
 The default hyperparameters of the SAC algorithm are optimized for sample efficiency.
-While this is ideal for learning directly on a single real robot, it is suboptimal for training thousands of robots in simulation.
+While this is ideal for learning directly on a single real robot<d-cite key="haarnoja2018learning"></d-cite>, it is suboptimal for training thousands of robots in simulation.
 
 [Previously](#quick-fix), I quickly tuned SAC by hand to get it up and running.
 This was sufficient for obtaining initial results, but it would be very time-consuming to continue tuning manually to reach PPO's performance level.
@@ -403,7 +412,7 @@ However, since collecting new data is cheap in the current setting, the replay r
 
 ### Optimization Result - Tuned Hyperparameters
 
-To optimize the hyperparameters, I used Optuna's CMA-ES sampler for 100 trials<d-footnote>Here, I only optimized for the Unitree A1 flat task due to limited computation power. It would be interesting to tune SAC directly for the "Rough" variant, including `n_steps` and gSDE train frequency as hyperparameters.</d-footnote> (taking about 10 hours with a population size of 10 individuals).
+To optimize the hyperparameters, I used Optuna's CMA-ES sampler<d-cite key="takuya2019optuna"></d-cite> for 100 trials<d-footnote>Here, I only optimized for the Unitree A1 flat task due to limited computation power. It would be interesting to tune SAC directly for the "Rough" variant, including `n_steps` and gSDE train frequency as hyperparameters.</d-footnote> (taking about 10 hours with a population size of 10 individuals).
 Afterward, I retrained the best trials to filter out any lucky seeds<d-cite key="raffin2022learning"></d-cite>, i.e., to find hyperparameters that work consistently across different runs.
 
 This is what the optimization history looks like. Many sets of hyperparameters were successful:
@@ -551,18 +560,6 @@ In the end, with a proper action space and tuned hyperparameters, SAC is now com
 I hope my voyage encourages others to use SAC in their experiments and unlock fine-tuning on real robots after pretraining in simulation.
 
 
-## Outro: What Does That Mean for the RL Community?
-
-When I discovered the large action limits problem, I was curious to see how widespread it was in the community.
-After a quick search, it turns out that a lot of papers/code are affected<d-footnote>A notable exception are Brax-based environments because their PPO implementation uses a squashed Gaussian, so the boundaries of the environments had to be properly defined.</d-footnote> by this large boundary problem (see a non-exhaustive [list of affected papers/code below](#appendix-affected-paperscode)).
-
-Although the initial choice of bounds may be a conscious and convenient one (no need to specify the real bounds, PPO will figure it out), it seems to have worked a bit by accident for those who built on top of it, and probably discouraged practitioners from trying other algorithms.
-
-<!--My recommendation would be to always have properly defined action bounds, and if they are not known in advance, you can always [plot the action distribution](https://gist.github.com/araffin/e069945a68aa0d51fcdff3f01e945c70) and adjust the limits when iterating on the environment design.-->
-My recommendation would be to always have properly defined action bounds.
-If they are not known in advance, you can [plot the action distribution](#appendix-plot-action-distribution) and adjust the limits when iterating on the environment design.
-
-
 ## Appendix: Affected Papers/Code
 Please find here a non-exhaustive list of papers/code affected by the large bound problem:
 <!-- - [MuJoCo Playground](https://github.com/google-deepmind/mujoco_playground/blob/0f3adda84f2a2ab55e9d9aaf7311c917518ec25c/mujoco_playground/_src/locomotion/go1/joystick.py#L239) -->
@@ -643,58 +640,12 @@ SAC would probably need a trust region mechanism as well.
 
 Again, if you find a way to make it work, please reach out!
 
-
-<!--### Truncated Quantile Critics (TQC)
-
-One idea I had to improve performance was to replace the SAC algorithm with its [distributional](https://araffin.github.io/slides/recent-advances-rl/#/8/0/1) counterpart, [Truncated Quantile Critics (TQC)](https://sb3-contrib.readthedocs.io/en/master/modules/tqc.html).
-Rather than approximating only the expected return, TQC models the distribution of returns.
-TQC's performance tends to be on par with SAC's, but it can outperform SAC in [harder environments]((https://araffin.github.io/slides/recent-advances-rl/#/9)) (at the cost of a slightly more expensive gradient step).
-TQC also has a parameter that controls the overestimation bias of the Q-value function (how many top quantiles to drop).
-
-While writing this blog (and doing experiments), TQC tended to be easier to tune.
-However, after finding good hyperparameters for speed, SAC was faster and reached equivalent performance compared to TQC (except on the Disney robot env, where TQC tends to work better).-->
-
-<!-- and also tried to limit the overestimation of the $$Q$$-value by dropping more quantiles:
-```python
-top_quantiles_to_drop_per_net = 5  # The default value is 2
-``` -->
-
 ### En Vrac - Other Things I Tried
 
 - penalty to be away from action bounds (hard to tune)
 - action space schedule (start with a small action space, make it bigger over time, tricky to schedule, and didn't improve performance)
 - linear schedule (`learning_rate = LinearSchedule(start=5e-4, end=1e-5, end_fraction=0.15)`), it helped for convergence when using `n_steps=1` and `use_sde=False`, but was not needed at the end
 
-<!--
-To try:
-- TD3 instead of SAC
-- normalize input partially (not height scan) -> doesn't work?
-- use trained PPO net as feature extractor -> not needed
-- add an history for the height scan -> not needed
-- KL penalty for SAC (trust region, already tried I guess?) -->
-
-## Appendix: SB3 PPO (PyTorch) vs. SBX PPO (Jax) - A Small Change in the Code, a Big Change in Performance
-
-{% include figure.liquid path="assets/img/2026-04-27-sac-massive-sim/sb3_sbx.jpg" class="img-fluid" %}
-<div class="caption">
-    Learning curves for SB3 PPO and SBX PPO before and after the fix. SB3 PPO is the blue line. SBX PPO before is the yellow line, and SBX PPO after the fix is the grey line.
-</div>
-
-While writing this blog post, I regularly compared SAC to PPO. I have two implementations of PPO: SB3 PPO in PyTorch and SBX PPO in JAX.
-While comparing, I noticed two things.
-First, SBX PPO did not learn anything when observation normalization was turned off, whereas SB3 PPO did.
-Second, the dynamics of the standard deviation (its evolution over time) of the Gaussian distribution were different.
-
-I investigated where the difference came from.
-SBX and SB3 share quite a bit of code, so I was surprised by such a significant difference.
-My main suspects were Jax vs. PyTorch because the Adam implementation and network initialization are different.
-I tried to use the same initialization for the weights and the same optimizer parameters, but I couldn't get similar behavior at that time.
-
-To dig deeper, I checked the statistics of the collected data to understand why the standard deviation was growing with the SBX implementation (instead of decreasing).
-I noticed something odd.
-The mean of the actions was not zero at the very beginning of training, and the standard deviation of the actions was much larger than expected (I was expecting std around 1.0, but got std=3.0 for instance).
-I realized that this was due to the last layer initialization, which was not producing actions close to zero at the beginning of training.
-Fixing this initialization problem solved my original issue (and the std of the actions during exploration): I could get similar performance with SB3 PPO and SBX PPO.
 
 ## Appendix: Plot Action Distribution
 
