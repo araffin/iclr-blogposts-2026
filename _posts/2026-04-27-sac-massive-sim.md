@@ -205,7 +205,7 @@ Now that we know that we need less than 5% of the action space to solve the task
 
 SAC and other off-policy algorithms for continuous actions (such as DDPG, TD3, or TQC) have an additional transformation at the end of the actor network.
 In SAC, actions are sampled from an unbounded Gaussian distribution and then passed through a [$$tanh()$$](https://pytorch.org/docs/stable/generated/torch.nn.Tanh.html) function to squash them to the range $$[-1, 1]$$.
-SAC then linearly rescales the sampled action to match the action space definition, i.e. it transforms the action from $$[-1, 1]$$ to $$[\text{low}, \text{high}]$$<d-footnote>Rescale from [-1, 1] to [low, high] using `action = low + (0.5 * (scaled_action + 1.0) * (high - low))`.</d-footnote>.
+SAC then linearly rescales the sampled action to match the action space definition, i.e. it transforms the action from $$[-1, 1]$$ to $$[\text{low}, \text{high}]$$<d-footnote>Rescale from [-1, 1] to [low, high] using <code>action = low + (0.5 * (scaled_action + 1.0) * (high - low))</code>.</d-footnote>.
 
 What does this mean?
 Assuming we start with a standard deviation similar to PPO, this is what the sampled action distribution looks like after squashing<d-footnote>Common PPO implementations clip the actions to fit the desired boundaries, which has the effect of oversampling actions at the boundaries when the limits are smaller than ~4.</d-footnote>:
@@ -518,7 +518,7 @@ The robot could finally learn to partially solve this task with this improved ex
 There was still a big gap in final performance between SAC and PPO.
 <!--To close the gap, I drew inspiration from the recent FastTD3<d-cite key="seo2025fasttd3"></d-cite> paper and implemented [n-step returns](https://github.com/DLR-RM/stable-baselines3/pull/2144) for all off-policy algorithms in SB3.-->
 To close the gap, I drew inspiration from the recent FastTD3<d-cite key="seo2025fasttd3"></d-cite> paper and implemented n-step returns.
-Using `n_steps=3` allowed SAC to finally solve the hardest task<d-footnote>Although there is still a slight performance gap between SAC and PPO, after reading the FastTD3 paper and conducting my own experiments, I believe that the environment rewards were tuned for PPO to encourage a desired behavior. In other words, I suspect that the weighting of the reward terms was adjusted for PPO. To achieve similar performance, SAC probably needs different weights.</d-footnote>!
+Using `n_steps=3` allowed SAC to finally solve the hardest task<d-footnote>Although there is still a slight performance gap between SAC and PPO, after reading the FastTD3 paper and conducting my own experiments, I believe that the environment rewards were tuned for PPO to encourage a desired behavior. In other words, I suspect that the weighting of the reward terms was adjusted for PPO. To achieve similar performance, SAC probably needs different weights. However, this is beyond the scope of this already lengthy blog post.</d-footnote>!
 
 In summary, here are the additional manual changes I made to the hyperparameters of SAC compared to those optimized automatically:
 ```yaml
@@ -533,7 +533,7 @@ use_sde: True
 n_steps: 3
 ```
 
-And here are the associated learning curves<d-footnote>The results are plotted for only five independent runs (random seeds). This is usually insufficient for RL due to the stochasticity of the results. However, in this case, the results tend to be consistent between runs (limited variability). I observed this during the many runs I did while debugging (and writing this blog post), so the trend is likely correct, even with a limited number of seeds. I only have one machine to run the tests, but I will try to run more tests in the coming weeks and update the plots.</d-footnote>(plotting the current curriculum level on the y-axis<d-footnote>I'm plotting the current state of the terrain curriculum (the higher the number, the harder the task/terrain) as the reward magnitude doesn't tell the whole story for the "Rough" task.</d-footnote>):
+And here are the associated learning curves (plotting the current curriculum level on the y-axis<d-footnote>I'm plotting the current state of the terrain curriculum (the higher the number, the harder the task/terrain) as the reward magnitude doesn't tell the whole story for the "Rough" task.</d-footnote>):
 
 {% include figure.liquid path="assets/img/2026-04-27-sac-massive-sim/learning_curve_rough.svg" class="img-fluid" %}
 <div class="caption">
@@ -555,7 +555,7 @@ SAC is also much more sample-efficient than PPO.
 This concludes the long journey I started a few months ago to make SAC work on a massively parallel simulator.
 During this adventure, I addressed a common issue that prevents SAC-like algorithms from working in these environments: the use of an unbounded action space.
 
-In the end, with a proper action space and tuned hyperparameters, SAC is now competitive with PPO<d-footnote>Although there is still a slight performance gap between SAC and PPO, after reading the FastTD3 paper and conducting my own experiments, I believe that the environment rewards were tuned for PPO to encourage a desired behavior. In other words, I suspect that the weighting of the reward terms was adjusted for PPO. To achieve similar performance, SAC probably needs different weights.</d-footnote> in terms of training time (while being much more sample-efficient) on a large collection of locomotion environments.
+In the end, with a proper action space and tuned hyperparameters, SAC is now competitive with PPO<d-footnote>Although there is still a slight performance gap between SAC and PPO, after reading the FastTD3 paper and conducting my own experiments, I believe that the environment rewards were tuned for PPO to encourage a desired behavior. In other words, I suspect that the weighting of the reward terms was adjusted for PPO. To achieve similar performance, SAC probably needs different weights. However, this is beyond the scope of this already lengthy blog post.</d-footnote> in terms of training time (while being much more sample-efficient) on a large collection of locomotion environments.
 I hope my voyage encourages others to use SAC in their experiments and unlock fine-tuning on real robots after pretraining in simulation.
 
 
