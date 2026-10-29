@@ -607,6 +607,17 @@ This makes training almost invariant to the chosen PD gains.
   It essentially learns to trick the PD control to output whatever torques it needs. Of course, this also depends on the PD gains you set; if they are well chosen, actions outside of the joint limits are less frequent. A big benefit is that this makes the whole training pipeline quite invariant to the PD gains you choose at the start, which makes tuning easier.
 </details>-->
 
+## Appendix: Ablation Study of the Quick Fix
+
+<!--TODO: add learning curves-->
+The main point of the "quick-fix" was to have a first sign of life.
+However, to isolate the effects of the different modifications, I ran additional ablation studies.
+
+In summary:
+- Without proper action bounds, SAC doesn't learn anything (flat learning curve, same as a random agent).
+- The entropy coefficient initialization is not essential to see some sign of life (learning a controller better than a random agent) but greatly improves the performance.
+- A larger network is not essential, but it does help to learn a good policy faster.
+
 
 ## Appendix: What I Tried That Didn't Work
 
