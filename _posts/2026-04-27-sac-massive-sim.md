@@ -70,7 +70,7 @@ The codebase and the simulator (called Isaac Gym<d-cite key="makoviychuk2021isaa
 As an RL researcher interested in learning directly on real robots, I was curious and suspicious about one aspect of this trend: why is no one trying an algorithm other than PPO<d-footnote>I was not the only one asking why SAC doesn't work: <a href="https://forums.developer.nvidia.com/t/poor-performance-of-soft-actor-critic-sac-in-omniverseisaacgym/266970">nvidia forum</a> <a href="https://www.reddit.com/r/reinforcementlearning/comments/lcx0cm/scaling_up_sac_with_parallel_environments/">reddit1</a> <a href="https://www.reddit.com/r/reinforcementlearning/comments/12h1faq/isaac_gym_with_offpolicy_algorithms">reddit2</a></d-footnote>?
 PPO benefits from fast and parallel environments<d-cite key="berner2019dota"></d-cite>, but PPO is not the only deep reinforcement learning (DRL) algorithm for continuous control tasks, and there are alternatives like SAC<d-cite key="haarnoja2018soft"></d-cite> or TQC<d-cite key="kuznetsov2020tqc"></d-cite> that can lead to better performance<d-cite key="huang2023openrlbenchmark"></d-cite>.
 
-So I decided to investigate why practitioners do not use these off-policy algorithms, and maybe why they don't work with massively parallel simulators.
+So I decided to investigate why practitioners do not use these off-policy algorithms, and maybe why they don't work with massively parallel simulators<d-footnote>Since the first version of this post was written over a year ago, I'm glad to see follow-up work such as FastTD3<d-cite key="seo2025learning"></d-cite>, FlashSAC<d-cite key="kim2026flashsac"></d-cite> or others<d-cite key="sabatini2026bridging"></d-cite> that investigate this further.</d-footnote>.
 
 
 ## Why It Matters? - Fine Tuning on Real Robots
@@ -152,6 +152,9 @@ Ah ah!
 The action space defines continuous actions of dimension 12 (nothing wrong here), but the limits $$[-100, 100]$$ are surprisingly large, e.g., it allows a delta of +/- 1432 deg!! in joint angle when [scale=0.25](https://github.com/isaac-sim/IsaacLab/blob/f1a4975eb7bae8509082a8ff02fd775810a73531/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/a1/rough_env_cfg.py#L30), like for the Unitree A1 robot.
 <!--To understand why [normalizing](https://www.youtube.com/watch?v=Ikngt0_DXJg) the action space [matters](https://stable-baselines3.readthedocs.io/en/master/guide/rl_tips.html) (usually a bounded space in $$[-1, 1]$$), we need to dig deeper into how PPO works.-->
 To understand why normalizing the action space [matters](https://stable-baselines3.readthedocs.io/en/master/guide/rl_tips.html) (usually a bounded space in $$[-1, 1]$$), we need to dig deeper into how PPO works.
+
+Note: those bounds are defined by the IsaacLab SB3 wrapper; the actual original action space is defined as `Box(-inf, inf, (12,), float32)`, fully unbounded!
+
 
 ## PPO Gaussian Distribution
 
@@ -446,7 +449,7 @@ Compared to the default hyperparameters of SAC, there are some notable changes:
 - The lower replay ratio (RR ≈ 0.03 for 1024 environments, or three gradient steps every 100 steps in an environment) and higher policy delay (update the actor once every eight critic updates) make it faster, as less time is taken for gradient updates.
 - The discount factor is lower than the default value of 0.99, which favors shorter-term rewards.
 
-Here is the result in video and the associated learning curves<d-footnote>The results are plotted for only five independent runs (random seeds). This is usually insufficient for RL due to the stochasticity of the results. However, in this case, the results tend to be consistent between runs (limited variability). I observed this during the many runs I did while debugging (and writing this blog post), so the trend is likely correct, even with a limited number of seeds.</d-footnote>:
+Here is the result in video and the associated learning curves:
 
 {% include figure.liquid path="assets/img/2026-04-27-sac-massive-sim/learning_curve_unitree.svg" class="img-fluid" %}
 <div class="caption">
@@ -502,7 +505,6 @@ This reminded me of SAC failing on the [mountain car problem](https://gymnasium.
 
 To test this hypothesis, I simplified the problem by [lowering the step](https://github.com/isaac-sim/IsaacLab/blob/f52aa9802780e897c184684d1cbc2025fafcef4a/source/isaaclab/isaaclab/terrains/config/rough.py#L32) of the inverted pyramid.
 I also used a more consistent exploration scheme: generalized State-Dependent Exploration (gSDE)<d-cite key="raffin2021gsde"></d-cite>.
-<!--(developed during my PhD to train RL directly on real robots).-->
 
 In its simplest form, gSDE repeats the noise vector for $$n$$-steps, instead of sampling it at every timestep.
 In other words, instead of selecting actions following $$a_t = \mu_\theta(s_t) + \epsilon_t$$<d-footnote>$$\mu_\theta(s_t)$$ is the actor network output, which represents the mean of the Gaussian distribution.</d-footnote> and sampling $$\epsilon_t \sim N(0, \sigma^2)$$ at every step during exploration, gSDE samples $$\epsilon \sim N(0, \sigma^2)$$ once and keeps $$\epsilon$$ constant for $$n$$-steps.
