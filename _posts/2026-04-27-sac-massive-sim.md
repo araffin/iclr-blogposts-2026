@@ -544,7 +544,7 @@ And here are the associated learning curves (plotting the current curriculum lev
 
 {% include figure.liquid path="assets/img/2026-04-27-sac-massive-sim/learning_curve_rough_efficiency.svg" class="img-fluid" %}
 <div class="caption">
-    Learning curve in term of sample-effiency on the Anymal-C "Rough" task using 1024 envs (except for PPO).
+    Learning curve in terms of sample-efficiency on the Anymal-C "Rough" task using 1024 envs (except for PPO).
 </div>
 
 In those plots, you can see the effect of gSDE and the use of n-step returns.
